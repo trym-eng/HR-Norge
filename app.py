@@ -586,26 +586,50 @@ red_flags = detect_red_flags(kpis, filtered_active, sick_leave_df, recruitment_d
 st.title("👥 HR Analytics Dashboard")
 st.markdown(f"**Organisasjon:** 4,564 aktive ansatte | **Filtrert utvalg:** {len(filtered_active):,} ansatte")
 
-# Executive Summary
-with st.expander("📊 Executive Summary", expanded=True):
-    st.markdown(f"""
-    ### Nøkkelinnsikter for {selected_country if selected_country != 'Alle' else 'hele organisasjonen'}
+# Executive Summary - Simplified to 3 key insights (Storytelling with Data principle)
+with st.expander("📊 Executive Summary - Hva ledelsen må vite NÅ", expanded=True):
+    # Calculate the most critical insight
+    critical_issues = []
+    if kpis['turnover_rate'] > 15:
+        critical_issues.append(f"🔴 Turnover på {kpis['turnover_rate']:.0f}% koster oss {kpis['cost_of_attrition']/1000000:.1f}M NOK")
+    if kpis['avg_engagement'] < 6.5:
+        critical_issues.append(f"🔴 Engasjement på {kpis['avg_engagement']:.1f}/10 er under kritisk nivå")
+    if kpis['flight_risk_pct'] > 20:
+        critical_issues.append(f"🔴 {kpis['high_flight_risk']} ansatte ({kpis['flight_risk_pct']:.0f}%) har høy risiko for å slutte")
 
-    **Workforce Overview:**
-    - **Headcount:** {kpis['headcount']:,} ansatte med gjennomsnittlig ansiennitet på {kpis['avg_tenure']:.1f} år
-    - **Turnover:** {kpis['turnover_rate']:.1f}% årlig rate ({kpis['voluntary_turnover']} frivillige avganger)
-    - **Estimert kostnad av attrition:** {kpis['cost_of_attrition']:,.0f} NOK
+    positive_points = []
+    if kpis['turnover_rate'] <= 15:
+        positive_points.append(f"✅ Turnover på {kpis['turnover_rate']:.0f}% er under benchmark")
+    if kpis['avg_engagement'] >= 6.5:
+        positive_points.append(f"✅ Engasjement på {kpis['avg_engagement']:.1f}/10 er på mål")
 
-    **Engagement & Risk:**
-    - **Engasjementsscore:** {kpis['avg_engagement']:.1f}/10 ({"🔴 Under mål" if kpis['avg_engagement'] < 6.5 else "🟢 På mål"})
-    - **Flight risk:** {kpis['high_flight_risk']} ansatte ({kpis['flight_risk_pct']:.1f}%) har høy risiko for å slutte
+    col1, col2, col3 = st.columns(3)
 
-    **Rekruttering:**
-    - **Time-to-hire:** Gjennomsnittlig {kpis['avg_time_to_hire']:.0f} dager
+    with col1:
+        st.markdown(f"""
+        ### 👥 Organisasjonen
+        **{kpis['headcount']:,}** ansatte
+        **{kpis['avg_tenure']:.1f}** år snitt ansiennitet
+        """)
 
-    **Helse & Fravær:**
-    - **Sykefraværsrate:** {kpis['sick_leave_rate']:.1f}%
-    """)
+    with col2:
+        st.markdown(f"""
+        ### 💰 Kostnad av Turnover
+        **{kpis['cost_of_attrition']/1000000:.1f}M** NOK estimert
+        **{kpis['voluntary_turnover']}** frivillige avganger
+        """)
+
+    with col3:
+        st.markdown(f"""
+        ### ⚠️ Risiko
+        **{kpis['high_flight_risk']}** høy-risiko ansatte
+        **{kpis['flight_risk_pct']:.0f}%** av arbeidsstyrken
+        """)
+
+    if critical_issues:
+        st.error("**Krever umiddelbar oppmerksomhet:** " + " | ".join(critical_issues[:2]))
+    elif positive_points:
+        st.success("**Status:** " + " | ".join(positive_points[:2]))
 
 # KPI Cards Row
 col1, col2, col3, col4, col5 = st.columns(5)
@@ -651,21 +675,29 @@ with col5:
 
 st.markdown("---")
 
-# Red Flags Section
+# Red Flags Section - Sorted by severity and business impact
 if red_flags:
     st.subheader("🚩 Red Flags & Varsler")
+    st.caption("Sortert etter alvorlighetsgrad og estimert business impact")
 
-    for flag in red_flags:
-        color_class = 'red-flag' if flag['type'] == 'danger' else 'yellow-flag' if flag['type'] == 'warning' else 'green-flag'
-        icon = '🔴' if flag['type'] == 'danger' else '🟡' if flag['type'] == 'warning' else 'ℹ️'
+    # Sort flags: danger first, then warning, then info
+    severity_order = {'danger': 0, 'warning': 1, 'info': 2}
+    sorted_flags = sorted(red_flags, key=lambda x: severity_order.get(x['type'], 3))
+
+    for flag in sorted_flags:
+        icon = '🔴 KRITISK' if flag['type'] == 'danger' else '⚠️ ADVARSEL' if flag['type'] == 'warning' else 'ℹ️ INFO'
+        border_color = '#ff4444' if flag['type'] == 'danger' else '#ffbb33' if flag['type'] == 'warning' else '#33b5e5'
 
         with st.container():
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                st.markdown(f"**{icon} {flag['title']}:** {flag['message']}")
-            with col2:
-                with st.popover("🔍 Forklar hvorfor"):
-                    st.markdown(flag['explanation'])
+            st.markdown(f"""
+            <div style="border-left: 4px solid {border_color}; padding: 10px 15px; margin: 10px 0; background: rgba(0,0,0,0.02); border-radius: 0 8px 8px 0;">
+                <strong>{icon}:</strong> {flag['title']}<br>
+                <span style="color: #666;">{flag['message']}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            with st.popover("🔍 Forklar hvorfor + Anbefalte tiltak"):
+                st.markdown(flag['explanation'])
 
 st.markdown("---")
 
@@ -687,66 +719,93 @@ with tab1:
     col1, col2 = st.columns(2)
 
     with col1:
-        # Headcount by Department
+        # Headcount by Department - with insight-based title
         dept_counts = filtered_active.groupby('department').size().reset_index(name='count')
+        dept_counts = dept_counts.sort_values('count', ascending=True)
+        top_dept = dept_counts.iloc[-1]
+        top_dept_pct = top_dept['count'] / len(filtered_active) * 100
+
         fig_dept = px.bar(
-            dept_counts.sort_values('count', ascending=True),
+            dept_counts,
             x='count', y='department',
             orientation='h',
-            title='Headcount per Avdeling',
+            title=f"📊 {top_dept['department']} er størst med {top_dept_pct:.0f}% av arbeidsstyrken",
             color='count',
-            color_continuous_scale='Blues'
+            color_continuous_scale='Blues',
+            text='count'
         )
-        fig_dept.update_layout(showlegend=False, height=400)
+        fig_dept.update_traces(textposition='outside')
+        fig_dept.update_layout(showlegend=False, height=400, coloraxis_showscale=False)
         st.plotly_chart(fig_dept, use_container_width=True)
 
     with col2:
-        # Headcount by Country
+        # Headcount by Country - with direct labels
         country_counts = filtered_active.groupby('country').size().reset_index(name='count')
+        country_counts['pct'] = (country_counts['count'] / country_counts['count'].sum() * 100).round(0).astype(int)
+        country_counts['label'] = country_counts['country'] + ': ' + country_counts['pct'].astype(str) + '%'
+        top_country = country_counts.loc[country_counts['count'].idxmax(), 'country']
+
         fig_country = px.pie(
             country_counts,
             values='count',
-            names='country',
-            title='Fordeling per Land',
+            names='label',
+            title=f"🌍 {top_country} er hovedkontoret med flest ansatte",
             hole=0.4
         )
-        fig_country.update_layout(height=400)
+        fig_country.update_traces(textposition='outside', textinfo='label')
+        fig_country.update_layout(height=400, showlegend=False)
         st.plotly_chart(fig_country, use_container_width=True)
 
     col3, col4 = st.columns(2)
 
     with col3:
-        # Seniority Distribution
+        # Seniority Distribution - with insight
         sen_counts = filtered_active.groupby('seniority_level').size().reset_index(name='count')
         sen_order = ['Junior', 'Mid', 'Senior', 'Lead', 'Director', 'VP', 'C-Level']
         sen_counts['seniority_level'] = pd.Categorical(sen_counts['seniority_level'], categories=sen_order, ordered=True)
         sen_counts = sen_counts.sort_values('seniority_level')
 
+        mid_count = sen_counts[sen_counts['seniority_level'] == 'Mid']['count'].values
+        mid_pct = (mid_count[0] / len(filtered_active) * 100) if len(mid_count) > 0 else 0
+
         fig_sen = px.bar(
             sen_counts,
             x='seniority_level', y='count',
-            title='Senioritetspyramide',
+            title=f"📈 Mid-nivå utgjør {mid_pct:.0f}% - typisk for vekstfase",
             color='count',
-            color_continuous_scale='Viridis'
+            color_continuous_scale='Viridis',
+            text='count'
         )
-        fig_sen.update_layout(showlegend=False, height=350)
+        fig_sen.update_traces(textposition='outside')
+        fig_sen.update_layout(showlegend=False, height=350, coloraxis_showscale=False)
         st.plotly_chart(fig_sen, use_container_width=True)
 
     with col4:
-        # Engagement by Department
+        # Engagement by Department - with insight-based title
         eng_dept = filtered_active.groupby('department')['engagement_score'].mean().reset_index()
         eng_dept = eng_dept.sort_values('engagement_score', ascending=True)
+
+        lowest_eng_dept = eng_dept.iloc[0]
+        org_avg = filtered_active['engagement_score'].mean()
+        gap = org_avg - lowest_eng_dept['engagement_score']
+
+        if gap > 0.5:
+            title = f"⚠️ {lowest_eng_dept['department']} ligger {gap:.1f} poeng under snittet"
+        else:
+            title = f"✅ Engasjement er jevnt fordelt på tvers av avdelinger"
 
         fig_eng = px.bar(
             eng_dept,
             x='engagement_score', y='department',
             orientation='h',
-            title='Engasjement per Avdeling',
+            title=title,
             color='engagement_score',
-            color_continuous_scale=['red', 'yellow', 'green']
+            color_continuous_scale=['#ff6b6b', '#ffd93d', '#6bcb77'],
+            text=eng_dept['engagement_score'].round(1)
         )
+        fig_eng.update_traces(textposition='outside')
         fig_eng.add_vline(x=6.5, line_dash="dash", line_color="red", annotation_text="Mål: 6.5")
-        fig_eng.update_layout(showlegend=False, height=350)
+        fig_eng.update_layout(showlegend=False, height=350, coloraxis_showscale=False)
         st.plotly_chart(fig_eng, use_container_width=True)
 
 # =====================
@@ -771,14 +830,25 @@ with tab2:
         turnover_rate_dept = turnover_dept.merge(headcount_dept, on='department')
         turnover_rate_dept['rate'] = turnover_rate_dept['terminations'] / turnover_rate_dept['headcount'] * 100
 
+        turnover_sorted = turnover_rate_dept.sort_values('rate', ascending=False)
+        critical_depts = turnover_sorted[turnover_sorted['rate'] > 15]
+        if len(critical_depts) > 0:
+            critical_names = " og ".join(critical_depts['department'].head(2).tolist())
+            title = f"🔴 {critical_names} har kritisk høy turnover (>{15}%)"
+        else:
+            title = "✅ Alle avdelinger er under benchmark på 15%"
+
         fig_turnover = px.bar(
-            turnover_rate_dept.sort_values('rate', ascending=False),
+            turnover_sorted,
             x='department', y='rate',
-            title='Turnover Rate per Avdeling (%)',
+            title=title,
             color='rate',
-            color_continuous_scale=['green', 'yellow', 'red']
+            color_continuous_scale=['#6bcb77', '#ffd93d', '#ff6b6b'],
+            text=turnover_sorted['rate'].round(1)
         )
+        fig_turnover.update_traces(textposition='outside', texttemplate='%{text:.1f}%')
         fig_turnover.add_hline(y=15, line_dash="dash", line_color="red", annotation_text="Benchmark: 15%")
+        fig_turnover.update_layout(coloraxis_showscale=False)
         st.plotly_chart(fig_turnover, use_container_width=True)
 
     with col2:
@@ -826,14 +896,17 @@ with tab2:
         flight_by_dept = filtered_active.groupby(['department', 'flight_risk']).size().unstack(fill_value=0)
         flight_by_dept_pct = flight_by_dept.div(flight_by_dept.sum(axis=1), axis=0) * 100
 
+        # Colorblind-friendly palette with patterns indicated in legend
         fig_flight = px.bar(
             flight_by_dept_pct.reset_index().melt(id_vars='department'),
             x='department', y='value',
             color='flight_risk',
             title='Flight Risk Fordeling per Avdeling (%)',
-            color_discrete_map={'Low': 'green', 'Medium': 'yellow', 'High': 'red'},
-            barmode='stack'
+            color_discrete_map={'Low': '#2E7D32', 'Medium': '#F9A825', 'High': '#C62828'},
+            barmode='stack',
+            category_orders={'flight_risk': ['Low', 'Medium', 'High']}
         )
+        fig_flight.update_layout(legend_title_text='Risiko (▢ Lav, ◐ Medium, ● Høy)')
         st.plotly_chart(fig_flight, use_container_width=True)
 
     with col2:
@@ -883,14 +956,24 @@ with tab3:
         sen_order = ['Junior', 'Mid', 'Senior', 'Lead', 'Director', 'VP', 'C-Level']
         gender_sen = gender_sen.reindex(sen_order)
 
+        # Calculate female % at Director+ level for insight title
+        director_plus = filtered_active[filtered_active['seniority_level'].isin(['Director', 'VP', 'C-Level'])]
+        female_leadership_pct = (len(director_plus[director_plus['gender'] == 'F']) / len(director_plus) * 100) if len(director_plus) > 0 else 0
+
+        if female_leadership_pct < 35:
+            gender_title = f"⚠️ Kun {female_leadership_pct:.0f}% kvinner på Director+ nivå (mål: 40%)"
+        else:
+            gender_title = f"✅ {female_leadership_pct:.0f}% kvinner i toppledelsen"
+
         fig_gender = px.bar(
             gender_sen.reset_index().melt(id_vars='seniority_level'),
             x='seniority_level', y='value',
             color='gender',
-            title='Kjønnsfordeling per Senioritetsnivå',
+            title=gender_title,
             barmode='group',
-            color_discrete_map={'M': '#4169E1', 'F': '#FF69B4', 'Other': '#90EE90'}
+            color_discrete_map={'M': '#1565C0', 'F': '#AD1457', 'Other': '#2E7D32'}
         )
+        fig_gender.update_layout(legend_title_text='Kjønn')
         st.plotly_chart(fig_gender, use_container_width=True)
 
     # Tenure distribution
