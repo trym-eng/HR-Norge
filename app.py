@@ -150,7 +150,11 @@ def load_data():
     """Load all HR data from CSV files"""
     import os
     base_path = os.path.dirname(os.path.abspath(__file__))
+
+    # Try 'data' subfolder first, then root folder
     data_path = os.path.join(base_path, 'data')
+    if not os.path.exists(os.path.join(data_path, 'employees.csv')):
+        data_path = base_path  # Files are in root folder
 
     employees = pd.read_csv(f'{data_path}/employees.csv')
     sick_leave = pd.read_csv(f'{data_path}/sick_leave.csv')
